@@ -35,11 +35,13 @@ include_directories(
   SYSTEM ${STB_IMAGE_WRITE_INCLUDE_DIR}
 )
 
+#关于如何组织项目文件
+#https://stackoverflow.com/questions/31422680/how-to-set-visual-studio-filters-for-nested-sub-directory-using-cmake
+
 # The following lines build the main executable. If you add a source
 # code file to Nori, be sure to include it in this list.
-add_executable(nori
-
-  # Header files
+set(NORI_SOURCE_LIST
+# Header files
   include/nori/bbox.h
   include/nori/bitmap.h
   include/nori/block.h
@@ -88,7 +90,18 @@ add_executable(nori
   src/microfacet.cpp
   src/mirror.cpp
   src/dielectric.cpp
+  
+  src/Integrator/AOIntegrator.cpp
+  src/Integrator/NormalIntegrator.cpp
+  src/Integrator/PathTracingIntegrator.cpp
+  src/Integrator/SimpleIntegrator.cpp
+  src/Integrator/WhittedIntegrator.cpp
 )
+
+add_executable(nori ${NORI_SOURCE_LIST})
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${NORI_SOURCE_LIST})
+set_property( GLOBAL PROPERTY USE_FOLDERS ON)
 
 add_definitions(${NANOGUI_EXTRA_DEFS})
 
