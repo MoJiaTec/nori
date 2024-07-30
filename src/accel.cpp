@@ -55,6 +55,8 @@ protected:
     const Mesh* m_mesh = nullptr;
 };
 
+std::vector<bool> g_usedPrimitives;
+
 bool Octree::CheckNode(OctNode* node, uint32_t &primitiveCount)
 {
     assert(node->children == 0 || node->primitives.empty());
@@ -85,6 +87,11 @@ bool Octree::CheckNode(OctNode* node, uint32_t &primitiveCount)
     {
         node->isValid = true;
         primitiveCount += node->primitives.size();
+
+        for(auto index: node->primitives)
+        {
+            g_usedPrimitives[index] = true;
+        }
     }
     
     return node->isValid;
@@ -110,16 +117,29 @@ void Octree::Build(const Mesh* mesh, uint32_t maxDepth, uint32_t maxPrimitiveCou
     uint32_t primitiveCount = m_mesh->getTriangleCount();
     for(uint32_t index = 0; index < primitiveCount; ++index)
     {
-        AddPrimitive(root, index);
+        if(!AddPrimitive(root, index))
+        {
+            std::cout << "[Octree::Build] failed to add primitive: " << index << "\n";
+        }
     }
 
     //会导致内存重新分配
     m_nodes.shrink_to_fit();
     
-    root = &m_nodes[0];
+    g_usedPrimitives.clear();
+    g_usedPrimitives.reserve(primitiveCount);
+    g_usedPrimitives.assign(primitiveCount, false);
     uint32_t buildPrimitiveCount = 0;
-    CheckNode(root, buildPrimitiveCount);
+    CheckNode(&m_nodes[0], buildPrimitiveCount);
+    
     std::cout << "[Octree::Build] original primitive count: " << primitiveCount << ", build primitive count: " << buildPrimitiveCount << "\n";
+    for(size_t index = 0; index < g_usedPrimitives.size(); ++index)
+    {
+        if(!g_usedPrimitives[index])
+        {
+            std::cout << "[Octree::Build] missed primitive: " << index << "\n";
+        }
+    }
 }
 
 void Octree::Clean()
@@ -134,10 +154,10 @@ bool Octree::TraverseNode(const OctNode* node, Ray3f& ray, Intersection& its, ui
 {
     bool ret = false;
 
-    // if (!node->box.rayIntersect(ray))
-    // {
-    //     return ret;
-    // }
+     if (!node->isValid || !node->box.rayIntersect(ray))
+     {
+         return ret;
+     }
 
     if (node->primitives.empty())
     {
@@ -194,53 +214,55 @@ bool Octree::RayIntersect(Ray3f &ray, Intersection &its, uint32_t& primitiveInde
 
 bool Octree::AddPrimitive(OctNode* node, uint32_t index)
 {
+    auto AddPrimitive2Childen = [&](uint32_t primitiveIndex)
+    {
+        bool bAdded = false;
+        for (uint32_t childIndex = node->children, maxChild = node->children + 8; childIndex < maxChild; ++childIndex)
+        {
+            if(AddPrimitive(&m_nodes[childIndex], primitiveIndex))
+            {
+                bAdded = true;
+            }
+        }
+
+        assert(bAdded);
+        if(!bAdded)
+        {
+            std::cout << "[Octree::AddPrimitive] failed to add primitive: " << primitiveIndex << "\n";
+            return false;
+        }
+
+        return true;
+    };
+    
     if(!node->box.overlaps(m_mesh->getBoundingBox(index)))
     {
         return false;
     }
-    
-    do
+
+    if(node->children > 0)
     {
-        if(node->children > 0)
-        {
-            bool ret = false;
-            for(uint32_t childIndex = node->children, maxChild = node->children + 8; childIndex < maxChild; ++childIndex)
-            {
-                if(AddPrimitive(&m_nodes[childIndex], index) > 0)
-                {
-                    ret = true;
-                }
-            }
-
-            assert(ret);
-            if(!ret)
-            {
-                std::cout << "[Octree::AddPrimitive] failed to add primitive: " << index << "\n";
-            }
-            return ret;
-        }
-
-		if (node->depth + 1 < m_maxDepth && node->primitives.size() + 1 >= m_maxPrimitiveCount)
-		{
-			BornChildren(node);
-
-			for (auto primitiveIndex : node->primitives)
-			{
-				for (uint32_t childIndex = node->children, maxChild = node->children + 8; childIndex < maxChild; ++childIndex)
-				{
-					AddPrimitive(&m_nodes[childIndex], index);
-				}
-			}
-
-            node->primitives.clear();
-		}
-        else
-        {
-            node->primitives.push_back(index);
-            return true;
-        }
+        return AddPrimitive2Childen(index);
     }
-    while (true);
+    else
+    {
+        node->primitives.push_back(index);
+    }
+
+    if(node->primitives.size() >= m_maxPrimitiveCount && node->depth + 1 < m_maxDepth)
+    {
+        BornChildren(node);
+        assert(node->children > 0);
+
+        for (auto primitiveIndex : node->primitives)
+        {
+            AddPrimitive2Childen(primitiveIndex);
+        }
+
+        node->primitives.clear();
+    }
+    
+    return true;
 }
 
 void Octree::BornChildren(OctNode* node)
