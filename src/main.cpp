@@ -23,6 +23,7 @@ using namespace nori;
 
 static int threadCount = -1;
 static bool gui = true;
+int maxOctreeDepth = 0;
 
 static void renderBlock(const Scene *scene, Sampler *sampler, ImageBlock &block) {
     const Camera *camera = scene->getCamera();
@@ -156,9 +157,11 @@ int main(int argc, char **argv) {
     std::string sceneName = "";
     std::string exrName = "";
 
-    for (int i = 1; i < argc; ++i) {
+    for (int i = 1; i < argc; ++i)
+    {
         std::string token(argv[i]);
-        if (token == "-t" || token == "--threads") {
+        if (token == "-t" || token == "--threads")
+        {
             if (i+1 >= argc) {
                 cerr << "\"--threads\" argument expects a positive integer following it." << endl;
                 return -1;
@@ -172,8 +175,24 @@ int main(int argc, char **argv) {
 
             continue;
         }
-        else if (token == "--no-gui") {
+        else if (token == "--no-gui")
+        {
             gui = false;
+            continue;
+        }
+        else if(token == "--maxOctreeDepth")
+        {
+            if (i+1 >= argc) {
+                cerr << "\"--maxOctreeDepth\" argument expects a positive integer following it." << endl;
+                return -1;
+            }
+            maxOctreeDepth = atoi(argv[i+1]);
+            i++;
+            if (maxOctreeDepth <= 0) {
+                cerr << "\"--maxOctreeDepth\" argument expects a positive integer following it." << endl;
+                return -1;
+            }
+
             continue;
         }
 
