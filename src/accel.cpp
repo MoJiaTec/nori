@@ -134,10 +134,10 @@ bool Octree::TraverseNode(const OctNode* node, Ray3f& ray, Intersection& its, ui
 {
     bool ret = false;
 
-    if (!node->box.rayIntersect(ray))
-    {
-        return ret;
-    }
+    // if (!node->box.rayIntersect(ray))
+    // {
+    //     return ret;
+    // }
 
     if (node->primitives.empty())
     {
@@ -213,10 +213,14 @@ bool Octree::AddPrimitive(OctNode* node, uint32_t index)
             }
 
             assert(ret);
+            if(!ret)
+            {
+                std::cout << "[Octree::AddPrimitive] failed to add primitive: " << index << "\n";
+            }
             return ret;
         }
 
-		if (node->depth < m_maxDepth && node->primitives.size() + 1 >= m_maxPrimitiveCount)
+		if (node->depth + 1 < m_maxDepth && node->primitives.size() + 1 >= m_maxPrimitiveCount)
 		{
 			BornChildren(node);
 
