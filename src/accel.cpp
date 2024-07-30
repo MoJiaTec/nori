@@ -6,6 +6,7 @@
 
 #include <nori/accel.h>
 #include <Eigen/Geometry>
+#include <chrono>
 
 extern int maxOctreeDepth;
 
@@ -104,6 +105,9 @@ void Octree::Build(const Mesh* mesh, uint32_t maxDepth, uint32_t maxPrimitiveCou
         return;
     }
 
+    using namespace std::chrono;
+    auto start = high_resolution_clock::now();
+    
     Clean();
 
     m_mesh = mesh;
@@ -125,13 +129,17 @@ void Octree::Build(const Mesh* mesh, uint32_t maxDepth, uint32_t maxPrimitiveCou
 
     //会导致内存重新分配
     m_nodes.shrink_to_fit();
+    auto end = high_resolution_clock::now();
+    std::cout << "[Octree::Build] cost time of build octree: " << duration_cast<milliseconds>(end - start).count() << "ms.\n";
     
     g_usedPrimitives.clear();
     g_usedPrimitives.reserve(primitiveCount);
     g_usedPrimitives.assign(primitiveCount, false);
     uint32_t buildPrimitiveCount = 0;
     CheckNode(&m_nodes[0], buildPrimitiveCount);
-    
+    std::cout << "[Octree::Build] cost time of check octree: " << duration_cast<milliseconds>(high_resolution_clock::now() - end).count() << "ms.\n";
+
+    std::cout << "[Octree::Build] octree nodes count: " << m_nodes.size() << "\n";
     std::cout << "[Octree::Build] original primitive count: " << primitiveCount << ", build primitive count: " << buildPrimitiveCount << "\n";
     for(size_t index = 0; index < g_usedPrimitives.size(); ++index)
     {
@@ -163,18 +171,44 @@ bool Octree::TraverseNode(const OctNode* node, Ray3f& ray, Intersection& its, ui
     {
         if(node->children > 0)
         {
+            std::pair<uint32_t, float> children[8] = {};
             for (uint32_t childIndex = node->children, maxChild = childIndex + 8; childIndex < maxChild; ++childIndex)
             {
-                if (TraverseNode(&m_nodes[childIndex], ray, its, primitiveIndex, shadowRay))
+                children[childIndex - node->children] = std::make_pair(childIndex, m_nodes[childIndex].box.distanceTo(ray.o));
+            }
+            //因为距离射线起点的碰撞盒更容易被碰到，所以先排个序
+            std::sort(children, children + 8, [](const auto& l, const auto& r) { return l.second < r.second; });
+
+            for(const auto& child: children)
+            {
+                if(child.second >= ray.maxt)
+                {
+                    break;
+                }
+                
+                if (TraverseNode(&m_nodes[child.first], ray, its, primitiveIndex, shadowRay))
                 {
                     if (shadowRay)
                     {
                         return true;
                     }
-
+            
                     ret = true;
                 }
             }
+            
+             //for (uint32_t childIndex = node->children, maxChild = node->children + 8; childIndex < maxChild; ++childIndex)
+             //{
+             //    if (TraverseNode(&m_nodes[childIndex], ray, its, primitiveIndex, shadowRay))
+             //    {
+             //        if (shadowRay)
+             //        {
+             //            return true;
+             //        }
+            
+             //        ret = true;
+             //    }
+             //}
         }
     }
     else
