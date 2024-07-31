@@ -13,7 +13,7 @@ extern int maxOctreeDepth;
 
 NORI_NAMESPACE_BEGIN
 
-#define USE_OCTREE 1
+#define USE_OCTREE 0
 
 struct OctLeaf
 {
@@ -366,7 +366,7 @@ bool Accel::rayIntersect(const Ray3f &ray_, Intersection &its, bool shadowRay) c
     if(g_octree)
     {
         foundIntersection = g_octree->RayIntersect(ray, its, f, shadowRay);
-        if(shadowRay)
+        if(foundIntersection && shadowRay)
         {
             return true;
         }
