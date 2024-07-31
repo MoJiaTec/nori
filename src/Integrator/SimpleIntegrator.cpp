@@ -17,15 +17,29 @@ public:
 
     Color3f Li(const Scene* scene, Sampler* sampler, const Ray3f& ray) const 
     {
-        /* Find the surface that is visible in the requested direction */
+        const Color3f backColor(0.0f);
+        
         Intersection its;
         if (!scene->rayIntersect(ray, its))
-            return Color3f(0.0f);
+        {
+            return backColor;
+        }
 
-        /* Return the component-wise absolute
-           value of the shading normal as a color */
-        Normal3f n = its.shFrame.n.cwiseAbs();
-        return Color3f(n.x(), n.y(), n.z());
+        auto p = m_position;
+        auto x = its.shFrame.toWorld(its.p);
+        auto dir = p - x;
+        Ray3f wi(x, dir.normalized(), Epsilon, dir.norm());
+        wi.o += dir * 0.00001f;
+        Intersection xxx;
+        if(scene->rayIntersect(wi))
+        {
+            return backColor;
+        }
+
+        //auto cosTheta = its.shFrame.cosTheta(its.toLocal(wi.d)) * 0.5f + 0.5f;
+        auto cosTheta = std::max(0.0f, its.shFrame.cosTheta(its.shFrame.toLocal(wi.d)));
+        auto lo = m_energy * cosTheta / ((4 * M_PI * M_PI) * dir.squaredNorm());
+        return lo;
     }
 
     std::string toString() const 

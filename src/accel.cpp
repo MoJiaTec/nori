@@ -176,24 +176,26 @@ bool Octree::TraverseNode(const OctNode* node, Ray3f& ray, Intersection& its, ui
             {
                 children[childIndex - node->children] = std::make_pair(childIndex, m_nodes[childIndex].box.distanceTo(ray.o));
             }
-            //因为距离射线起点的碰撞盒更容易被碰到，所以先排个序
+
+            //按距离排序
             std::sort(children, children + 8, [](const auto& l, const auto& r) { return l.second < r.second; });
 
             for(const auto& child: children)
             {
-                if(child.second >= ray.maxt)
-                {
-                    break;
-                }
+                // if(child.second >= ray.maxt)
+                // {
+                //     break;
+                // }
                 
                 if (TraverseNode(&m_nodes[child.first], ray, its, primitiveIndex, shadowRay))
                 {
-                    if (shadowRay)
-                    {
-                        return true;
-                    }
-            
-                    ret = true;
+                    // if (shadowRay)
+                    // {
+                    //     return true;
+                    // }
+                    //
+
+                    return true;
                 }
             }
             

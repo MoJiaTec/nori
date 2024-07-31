@@ -11,8 +11,6 @@ class NormalIntegrator : public Integrator
 public:
     NormalIntegrator(const PropertyList& props)
     {
-        m_myProperty = props.getString("myProperty");
-        std::cout << "Parameter value was : " << m_myProperty << std::endl;
     }
 
     Color3f Li(const Scene* scene, Sampler* sampler, const Ray3f& ray) const
