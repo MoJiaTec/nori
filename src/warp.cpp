@@ -18,20 +18,34 @@ float Warp::squareToUniformSquarePdf(const Point2f &sample) {
     return ((sample.array() >= 0).all() && (sample.array() <= 1).all()) ? 1.0f : 0.0f;
 }
 
-Point2f Warp::squareToTent(const Point2f &sample) {
-    throw NoriException("Warp::squareToTent() is not yet implemented!");
+float tentPdf(float t)
+{
+    return t >= -1 && t <= 1 ? 1 - std::abs(t) : 0;    
 }
 
-float Warp::squareToTentPdf(const Point2f &p) {
-    throw NoriException("Warp::squareToTentPdf() is not yet implemented!");
+float uniform2Tent(float t)
+{
+    return t < 0.5f ? std::sqrt(2.0f * t) - 1 : 1 - sqrt(2.0f - 2.0f * t);
 }
 
-Point2f Warp::squareToUniformDisk(const Point2f &sample) {
-    throw NoriException("Warp::squareToUniformDisk() is not yet implemented!");
+Point2f Warp::squareToTent(const Point2f &sample)
+{
+    return Point2f(uniform2Tent(sample.x()), uniform2Tent(sample.y()));
 }
 
-float Warp::squareToUniformDiskPdf(const Point2f &p) {
-    throw NoriException("Warp::squareToUniformDiskPdf() is not yet implemented!");
+float Warp::squareToTentPdf(const Point2f &p)
+{
+    return tentPdf(p.x()) * tentPdf(p.y());
+}
+
+Point2f Warp::squareToUniformDisk(const Point2f &sample)
+{
+
+}
+
+float Warp::squareToUniformDiskPdf(const Point2f &p)
+{
+    
 }
 
 Vector3f Warp::squareToUniformSphere(const Point2f &sample) {
