@@ -26,17 +26,17 @@ public:
         }
 
         auto p = m_position;
-        auto x = its.shFrame.toWorld(its.p);
+        auto x = its.p;
         auto dir = p - x;
         Ray3f wi(x, dir.normalized(), Epsilon, dir.norm());
         wi.o += dir * 0.00001f;
-        if(scene->rayIntersect(wi))
-        {
-            return backColor;
-        }
+         if(scene->rayIntersect(wi))
+         {
+             return backColor;
+         }
 
-        auto cosTheta = its.shFrame.cosTheta(its.toLocal(wi.d)) * 0.5f + 0.5f;
-        //auto cosTheta = std::max(0.0f, its.shFrame.cosTheta(its.shFrame.toLocal(wi.d)));
+        //auto cosTheta = its.shFrame.cosTheta(its.toLocal(wi.d)) * 0.5f + 0.5f;
+        auto cosTheta = std::max(0.0f, its.shFrame.cosTheta(its.shFrame.toLocal(wi.d)));
         auto lo = m_energy * cosTheta / ((4 * M_PI * M_PI) * dir.squaredNorm());
         return lo;
     }

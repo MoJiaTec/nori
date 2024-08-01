@@ -13,7 +13,7 @@ extern int maxOctreeDepth;
 
 NORI_NAMESPACE_BEGIN
 
-#define USE_OCTREE 0
+#define USE_OCTREE 1
 
 struct OctLeaf
 {
