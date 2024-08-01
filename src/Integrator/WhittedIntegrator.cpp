@@ -1,6 +1,7 @@
 #include <nori/integrator.h>
 #include <nori/mesh.h>
 #include <nori/scene.h>
+#include <nori/warp.h>
 
 static const std::string s_IntegratorName = "Whitted";
 
@@ -15,15 +16,26 @@ public:
 
     Color3f Li(const Scene* scene, Sampler* sampler, const Ray3f& ray) const
     {
-        /* Find the surface that is visible in the requested direction */
+        const Color3f backColor(0.0f);
+        
         Intersection its;
         if (!scene->rayIntersect(ray, its))
-            return Color3f(0.0f);
+        {
+            return backColor;
+        }
 
-        /* Return the component-wise absolute
-           value of the shading normal as a color */
-        Normal3f n = its.shFrame.n.cwiseAbs();
-        return Color3f(n.x(), n.y(), n.z());
+        float aoScale = 1.0f;
+
+        auto rng = sampler->next2D();
+        auto wi = Warp::squareToCosineHemisphere(rng);
+        wi = its.shFrame.toWorld(wi).normalized();
+        int visiblity = 0;
+        if (!scene->rayIntersect(Ray3f(its.p + wi * aoScale, wi)))
+        {
+            visiblity = 1;
+        }
+        
+        return Color3f(float(visiblity));
     }
 
     std::string toString() const
