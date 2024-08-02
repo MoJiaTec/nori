@@ -179,6 +179,7 @@ bool Octree::TraverseNode(const OctNode* node, Ray3f& ray, Intersection& its, ui
     {
         if(node->children > 0)
         {
+            /*   
             std::pair<uint32_t, float> children[8] = {};
             for (uint32_t childIndex = node->children, maxChild = childIndex + 8; childIndex < maxChild; ++childIndex)
             {
@@ -201,24 +202,24 @@ bool Octree::TraverseNode(const OctNode* node, Ray3f& ray, Intersection& its, ui
                     // {
                     //     return true;
                     // }
-                    //
-
+                    
                     return true;
                 }
             }
+            */
             
-             //for (uint32_t childIndex = node->children, maxChild = node->children + 8; childIndex < maxChild; ++childIndex)
-             //{
-             //    if (TraverseNode(&m_nodes[childIndex], ray, its, primitiveIndex, shadowRay))
-             //    {
-             //        if (shadowRay)
-             //        {
-             //            return true;
-             //        }
-            
-             //        ret = true;
-             //    }
-             //}
+             for (uint32_t childIndex = node->children, maxChild = node->children + 8; childIndex < maxChild; ++childIndex)
+             {
+                 if (TraverseNode(&m_nodes[childIndex], ray, its, primitiveIndex, shadowRay))
+                 {
+                     if (shadowRay)
+                     {
+                         return true;
+                     }
+             
+                     ret = true;
+                 }
+             }
         }
     }
     else
