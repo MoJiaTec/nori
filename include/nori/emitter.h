@@ -15,12 +15,8 @@ NORI_NAMESPACE_BEGIN
  */
 class Emitter : public NoriObject {
 public:
-
-    /**
-     * \brief Return the type of object (i.e. Mesh/Emitter/etc.) 
-     * provided by this instance
-     * */
-    EClassType getClassType() const { return EEmitter; }
+    
+    EClassType getClassType() const override { return EEmitter; }
 };
 
 NORI_NAMESPACE_END

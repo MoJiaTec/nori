@@ -24,6 +24,12 @@ public:
             return backColor;
         }
 
+        auto emitter = its.mesh->getEmitter();
+        if(emitter)
+        {
+            
+        }
+
         float aoScale = 1.0f;
 
         auto rng = sampler->next2D();
