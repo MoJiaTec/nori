@@ -54,8 +54,8 @@ public:
     bool rayIntersect(const Ray3f &ray, Intersection &its, bool shadowRay) const;
 
 private:
-    Mesh         *m_mesh = nullptr; ///< Mesh (only a single one for now)
     BoundingBox3f m_bbox;           ///< Bounding box of the entire scene
+    std::vector<const Mesh*> m_meshes;
 };
 
 NORI_NAMESPACE_END

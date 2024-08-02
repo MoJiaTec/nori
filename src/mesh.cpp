@@ -20,8 +20,10 @@ Mesh::~Mesh() {
     delete m_emitter;
 }
 
-void Mesh::activate() {
-    if (!m_bsdf) {
+void Mesh::activate()
+{
+    if (!m_bsdf)
+    {
         /* If no material was assigned, instantiate a diffuse BRDF */
         m_bsdf = static_cast<BSDF *>(
             NoriObjectFactory::createInstance("diffuse", PropertyList()));

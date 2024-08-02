@@ -91,6 +91,8 @@ set(NORI_SOURCE_LIST
   src/mirror.cpp
   src/dielectric.cpp
   
+  src/Light/AreaLight.cpp
+  
   src/Integrator/AOIntegrator.cpp
   src/Integrator/NormalIntegrator.cpp
   src/Integrator/PathTracingIntegrator.cpp

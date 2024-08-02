@@ -15,9 +15,10 @@ NORI_NAMESPACE_BEGIN
 
 #define USE_OCTREE 1
 
-struct OctLeaf
+struct OctPrimitive
 {
-    
+    const Mesh* mesh;
+    std::vector<size_t> triangles;
 };
 
 struct OctNode
@@ -26,7 +27,7 @@ struct OctNode
     BoundingBox3f box;
     uint32_t children;
     
-    std::vector<uint32_t> primitives;
+    std::vector<OctPrimitive> primitives;
 
     bool isValid = false;
 };
@@ -34,13 +35,14 @@ struct OctNode
 class Octree
 {
 public:
-    void Build(const Mesh* mesh, uint32_t maxDepth, uint32_t maxPrimitiveCount);
+    void Build(std::vector<const Mesh*>& meshes, const BoundingBox3f& box, uint32_t maxDepth, uint32_t maxPrimitiveCount);
     void Clean();
 
     bool RayIntersect(Ray3f &ray, Intersection &its, uint32_t& primitiveIndex, bool shadowRay) const;
 
 protected:
-    bool AddPrimitive(OctNode* node, uint32_t index);
+    void AddMesh(OctNode* node, const Mesh* mesh);
+    bool AddPrimitive(OctNode* node, const Mesh* mesh, uint32_t index);
     void BornChildren(OctNode* node);
 
     bool TraverseNode(const OctNode* node, Ray3f& ray, Intersection& its, uint32_t& primitiveIndex, bool shadowRay) const;
@@ -49,14 +51,13 @@ protected:
     bool CheckNode(OctNode* node, uint32_t &primitiveCount);
 
 protected:
+    std::vector<const Mesh*> m_meshes;
     std::vector<OctNode> m_nodes;
     uint32_t m_maxDepth = 0;
     uint32_t m_maxPrimitiveCount = 0;
-
-    const Mesh* m_mesh = nullptr;
 };
 
-std::vector<bool> g_usedPrimitives;
+std::map<const Mesh*, std::vector<bool>> g_usedPrimitives;
 
 bool Octree::CheckNode(OctNode* node, uint32_t &primitiveCount)
 {
@@ -87,20 +88,23 @@ bool Octree::CheckNode(OctNode* node, uint32_t &primitiveCount)
     else
     {
         node->isValid = true;
-        primitiveCount += node->primitives.size();
-
-        for(auto index: node->primitives)
+        for(auto primitive: node->primitives)
         {
-            g_usedPrimitives[index] = true;
+            primitiveCount += primitive.triangles.size();
+            auto& triangles = g_usedPrimitives[primitive.mesh];
+            for(auto index: primitive.triangles)
+            {
+                triangles[index] = true;
+            }
         }
     }
     
     return node->isValid;
 }
 
-void Octree::Build(const Mesh* mesh, uint32_t maxDepth, uint32_t maxPrimitiveCount)
+void Octree::Build(std::vector<const Mesh*>& meshes, const BoundingBox3f& box, uint32_t maxDepth, uint32_t maxPrimitiveCount)
 {
-    if(!mesh)
+    if(meshes.empty())
     {
         return;
     }
@@ -110,52 +114,56 @@ void Octree::Build(const Mesh* mesh, uint32_t maxDepth, uint32_t maxPrimitiveCou
     
     Clean();
 
-    m_mesh = mesh;
+    m_meshes = meshes;
     m_maxDepth = maxDepth;
     m_maxPrimitiveCount = maxPrimitiveCount;
 
     m_nodes.reserve(1 + std::pow(2, (3 * (maxDepth + 1))));
-    m_nodes.push_back(OctNode{0, m_mesh->getBoundingBox(), 0, std::vector<uint32_t>()});
-    OctNode* root = &m_nodes[0];
-    
-    uint32_t primitiveCount = m_mesh->getTriangleCount();
-    for(uint32_t index = 0; index < primitiveCount; ++index)
-    {
-        if(!AddPrimitive(root, index))
-        {
-            std::cout << "[Octree::Build] failed to add primitive: " << index << "\n";
-        }
-    }
+    m_nodes.push_back(OctNode{0, box, 0});
+    OctNode* root = m_nodes.data();
 
+    for(size_t i = 0; i < m_meshes.size(); ++i)
+    {
+        AddMesh(root, m_meshes[i]);
+    }
+    
     //会导致内存重新分配
     m_nodes.shrink_to_fit();
     auto end = high_resolution_clock::now();
     std::cout << "[Octree::Build] cost time of build octree: " << duration_cast<milliseconds>(end - start).count() << "ms.\n";
-    
+
     g_usedPrimitives.clear();
-    g_usedPrimitives.reserve(primitiveCount);
-    g_usedPrimitives.assign(primitiveCount, false);
+    uint32_t primitiveCount = 0;
+    std::for_each(m_meshes.begin(), m_meshes.end(), [&primitiveCount](const Mesh* mesh)
+    {
+        primitiveCount += mesh->getTriangleCount();
+        g_usedPrimitives.insert(std::make_pair(mesh, std::vector<bool>(mesh->getTriangleCount(), false)));
+    });
+    
     uint32_t buildPrimitiveCount = 0;
-    CheckNode(&m_nodes[0], buildPrimitiveCount);
+    CheckNode(m_nodes.data(), buildPrimitiveCount);
     std::cout << "[Octree::Build] cost time of check octree: " << duration_cast<milliseconds>(high_resolution_clock::now() - end).count() << "ms.\n";
 
     std::cout << "[Octree::Build] octree nodes count: " << m_nodes.size() << "\n";
     std::cout << "[Octree::Build] original primitive count: " << primitiveCount << ", build primitive count: " << buildPrimitiveCount << "\n";
-    for(size_t index = 0; index < g_usedPrimitives.size(); ++index)
+    for (auto primitive : g_usedPrimitives)
     {
-        if(!g_usedPrimitives[index])
+        for (size_t index = 0; index < primitive.second.size(); ++index)
         {
-            std::cout << "[Octree::Build] missed primitive: " << index << "\n";
+            if (!primitive.second[index])
+            {
+                std::cout << "[Octree::Build] missed primitive: " << primitive.first->getName().c_str() << ", " << index << "\n";
+            }
         }
     }
 }
 
 void Octree::Clean()
 {
+    m_meshes.clear();
     m_nodes.clear();
     m_maxDepth = 0;
     m_maxPrimitiveCount = 0;
-    m_mesh = nullptr;
 }
 
 bool Octree::TraverseNode(const OctNode* node, Ray3f& ray, Intersection& its, uint32_t& primitiveIndex, bool shadowRay) const
@@ -215,22 +223,28 @@ bool Octree::TraverseNode(const OctNode* node, Ray3f& ray, Intersection& its, ui
     }
     else
     {
-        for (auto index : node->primitives)
+        for(auto& primitive: node->primitives)
         {
-            float u, v, t;
-            if (m_mesh->rayIntersect(index, ray, u, v, t))
+            if(primitive.mesh >= 0 && !primitive.triangles.empty())
             {
-                if (shadowRay)
+                for (auto index : primitive.triangles)
                 {
-                    return true;
+                    float u, v, t;
+                    if (primitive.mesh->rayIntersect(index, ray, u, v, t))
+                    {
+                        if (shadowRay)
+                        {
+                            return true;
+                        }
+
+                        ray.maxt = its.t = t;
+                        its.uv = Point2f(u, v);
+                        its.mesh = primitive.mesh;
+                        primitiveIndex = index;
+
+                        ret = true;
+                    }
                 }
-
-                ray.maxt = its.t = t;
-                its.uv = Point2f(u, v);
-                its.mesh = m_mesh;
-                primitiveIndex = index;
-
-                ret = true;
             }
         }
     }
@@ -245,56 +259,81 @@ bool Octree::RayIntersect(Ray3f &ray, Intersection &its, uint32_t& primitiveInde
         return false;
     }
     
-    return TraverseNode(&m_nodes[0], ray, its, primitiveIndex, shadowRay);
+    return TraverseNode(m_nodes.data(), ray, its, primitiveIndex, shadowRay);
 }
 
-bool Octree::AddPrimitive(OctNode* node, uint32_t index)
+void Octree::AddMesh(OctNode* node, const Mesh* mesh)
 {
-    auto AddPrimitive2Childen = [&](uint32_t primitiveIndex)
+    uint32_t primitiveCount = mesh->getTriangleCount();
+    for(uint32_t index = 0; index < primitiveCount; ++index)
+    {
+        if(!AddPrimitive(node, mesh, index))
+        {
+            std::cout << "[Octree::Build] failed to add primitive. mesh:" << mesh->getName().c_str() << ", primitive: " << index << "\n";
+        }
+    }
+}
+
+bool Octree::AddPrimitive(OctNode* node, const Mesh* mesh, uint32_t index)
+{
+    auto AddPrimitive2Childen = [&](const Mesh* curMesh, uint32_t triangleIndex)
     {
         bool bAdded = false;
+
         for (uint32_t childIndex = node->children, maxChild = node->children + 8; childIndex < maxChild; ++childIndex)
         {
-            if(AddPrimitive(&m_nodes[childIndex], primitiveIndex))
+            if(AddPrimitive(&m_nodes[childIndex], curMesh, triangleIndex))
             {
                 bAdded = true;
             }
         }
-
+        
         assert(bAdded);
         if(!bAdded)
         {
-            std::cout << "[Octree::AddPrimitive] failed to add primitive: " << primitiveIndex << "\n";
             return false;
         }
 
         return true;
     };
     
-    if(!node->box.overlaps(m_mesh->getBoundingBox(index)))
+    if(!node->box.overlaps(mesh->getBoundingBox(index)))
     {
         return false;
     }
 
     if(node->children > 0)
     {
-        return AddPrimitive2Childen(index);
+        return AddPrimitive2Childen(mesh, index);
     }
     else
     {
-        node->primitives.push_back(index);
+        if(node->primitives.empty() || node->primitives.back().mesh != mesh)
+        {
+            node->primitives.push_back(OctPrimitive{mesh});
+        }
+        node->primitives.back().triangles.push_back(index);
     }
 
-    if(node->primitives.size() >= m_maxPrimitiveCount && node->depth + 1 < m_maxDepth)
+    size_t primitiveCount = 0;
+    for(auto primitive: node->primitives)
+    {
+        primitiveCount += primitive.triangles.size();
+    }
+
+    if(primitiveCount >= m_maxPrimitiveCount && node->depth + 1 < m_maxDepth)
     {
         BornChildren(node);
         assert(node->children > 0);
 
-        for (auto primitiveIndex : node->primitives)
+        for (auto primitive : node->primitives)
         {
-            AddPrimitive2Childen(primitiveIndex);
+            for(auto triangleIndex: primitive.triangles)
+            {
+                AddPrimitive2Childen(primitive.mesh, triangleIndex);
+            }
         }
-
+        
         node->primitives.clear();
     }
     
@@ -318,7 +357,7 @@ void Octree::BornChildren(OctNode* node)
                         std::max(corner.y(), center.y()),
                         std::max(corner.z(), center.z()));
 
-        m_nodes.push_back(OctNode{depth, BoundingBox3f(minPoint, maxPoint), 0, std::vector<uint32_t>()});
+        m_nodes.push_back(OctNode{depth, BoundingBox3f(minPoint, maxPoint), 0});
     }
 }
 
@@ -326,14 +365,18 @@ std::shared_ptr<Octree> g_octree;
 
 void Accel::addMesh(Mesh *mesh)
 {
-    if (m_mesh)
-        throw NoriException("Accel: only a single mesh is supported!");
-    m_mesh = mesh;
-    m_bbox = m_mesh->getBoundingBox();
+    if(nullptr == mesh)
+    {
+        return;
+    }
+    
+    m_meshes.push_back(mesh);
+    m_bbox.expandBy(mesh->getBoundingBox());
 }
 
 void Accel::build()
 {
+#if USE_OCTREE
     if(!g_octree)
     {
         g_octree = std::make_shared<Octree>();
@@ -352,7 +395,8 @@ void Accel::build()
 #endif
     }
 
-    g_octree->Build(m_mesh, maxDepth, 16);
+    g_octree->Build(m_meshes, m_bbox, maxDepth, 16);
+#endif
 }
 
 bool Accel::rayIntersect(const Ray3f &ray_, Intersection &its, bool shadowRay) const
@@ -362,7 +406,31 @@ bool Accel::rayIntersect(const Ray3f &ray_, Intersection &its, bool shadowRay) c
 
     Ray3f ray(ray_); /// Make a copy of the ray (we will need to update its '.maxt' value)
 
-#if USE_OCTREE
+    auto RayIntersectWithMesh = [&](const Mesh* mesh)
+    {
+        bool foundIntersection = false;
+        
+        /* Brute force search through all triangles */
+        for (uint32_t idx = 0; idx < mesh->getTriangleCount(); ++idx)
+        {
+            float u, v, t;
+            if (mesh->rayIntersect(idx, ray, u, v, t))
+            {
+                /* An intersection was found! Can terminate
+                   immediately if this is a shadow ray query */
+                if (shadowRay)
+                    return true;
+                ray.maxt = its.t = t;
+                its.uv = Point2f(u, v);
+                its.mesh = mesh;
+                f = idx;
+                foundIntersection = true;
+            }
+        }
+
+        return foundIntersection;
+    };
+    
     if(g_octree)
     {
         foundIntersection = g_octree->RayIntersect(ray, its, f, shadowRay);
@@ -371,25 +439,23 @@ bool Accel::rayIntersect(const Ray3f &ray_, Intersection &its, bool shadowRay) c
             return true;
         }
     }
-#else
-    /* Brute force search through all triangles */
-    for (uint32_t idx = 0; idx < m_mesh->getTriangleCount(); ++idx) {
-        float u, v, t;
-        if (m_mesh->rayIntersect(idx, ray, u, v, t)) {
-            /* An intersection was found! Can terminate
-               immediately if this is a shadow ray query */
-            if (shadowRay)
-                return true;
-            ray.maxt = its.t = t;
-            its.uv = Point2f(u, v);
-            its.mesh = m_mesh;
-            f = idx;
-            foundIntersection = true;
+    else
+    {
+        for(auto mesh: m_meshes)
+        {
+            if(RayIntersectWithMesh(mesh))
+            {
+                foundIntersection = true;
+                if(foundIntersection && shadowRay)
+                {
+                    return true;
+                }
+            }
         }
     }
-#endif
 
-    if (foundIntersection) {
+    if (foundIntersection)
+    {
         /* At this point, we now know that there is an intersection,
            and we know the triangle index of the closest such intersection.
 

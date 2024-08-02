@@ -3,7 +3,7 @@
 #include <nori/scene.h>
 #include <nori/warp.h>
 
-static const std::string s_IntegratorName = "Whitted";
+static const std::string s_IntegratorName = "whitted";
 
 NORI_NAMESPACE_BEGIN
 
